@@ -16,6 +16,14 @@ import type { IInterval } from '../../report/report.constants';
 
 const ROLLUP_DATE_PREFIX = '1970-01-01';
 
+/**
+ * A screen view's duration: the time until the next one in its session, 0 for
+ * the last. Sessionless events (server-side tracking) all carry session_id '',
+ * which is not one session: each stands alone and gets 0, not the gap to
+ * another user's event.
+ */
+export const SCREEN_VIEW_DURATION = sql`if(session_id = '', 0, dateDiff('millisecond', created_at, lead(created_at, 1, created_at) OVER (PARTITION BY session_id ORDER BY created_at)))`;
+
 export type OverviewTable = 'events' | 'sessions';
 
 /** Deliberately timezone-blind for week/month (see header). */
@@ -207,7 +215,7 @@ export function metricsWithPageFilterQuery(
         ${dateBucket} AS date,
         profile_id,
         session_id,
-        dateDiff('millisecond', created_at, lead(created_at, 1, created_at) OVER (PARTITION BY session_id ORDER BY created_at)) AS duration,
+        ${SCREEN_VIEW_DURATION} AS duration,
         ${input.rawEventFilterWhere ?? sql`true`} AS matches_filter
       FROM events
       WHERE project_id = ${sql.string(input.projectId)}
@@ -562,6 +570,7 @@ function orderedEventsQuery(input: OrderedEventsQueryInput): SqlFragment {
       AND name = 'screen_view'
       AND path != ''
       AND path IS NOT NULL
+      AND session_id != ''
       AND ${dateRangeWhere('created_at', input.startDate, input.endDate)}
       ${rawWhere(input.rawFilterWhere)}
     ORDER BY session_id ASC, created_at ASC

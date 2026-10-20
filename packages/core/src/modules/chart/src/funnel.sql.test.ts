@@ -449,6 +449,27 @@ describe('funnel.sql / profile-property narrowing', () => {
   });
 });
 
+describe('funnel.sql — sessionless events', () => {
+  // Server-side events carry session_id '', which is not one session.
+  const SESSIONLESS_EXCLUDED = "events.session_id != ''";
+
+  it('excludes sessionless events when the funnel is per session', async () => {
+    const chart = await chartStatement();
+    const profiles = await profilesStatement();
+    expect(render(chart).sql).toContain(SESSIONLESS_EXCLUDED);
+    expect(render(profiles).sql).toContain(SESSIONLESS_EXCLUDED);
+    await explain(chart);
+    await explain(profiles);
+  });
+
+  it('keeps sessionless events when the funnel is per profile', async () => {
+    const chart = await chartStatement({ funnelGroup: 'profile_id' });
+    expect(render(chart).sql).toMatch(/GROUP BY profile_id\b/);
+    expect(render(chart).sql).not.toContain(SESSIONLESS_EXCLUDED);
+    await explain(chart);
+  });
+});
+
 describe('funnel.sql — custom event steps', () => {
   const customEventStep = event({
     id: 'A',

@@ -275,6 +275,39 @@ describe('overview.sql — parses against ClickHouse', () => {
   });
 });
 
+// Server-side events carry session_id '', which is not one session.
+describe('overview.sql — sessionless events', () => {
+  const journeyInput = {
+    projectId: PROJECT_ID,
+    startDate: START,
+    endDate: END,
+    rawFilterWhere: null,
+    steps: 5,
+  };
+
+  it('leaves them out of the user journey paths', () => {
+    const entries = OV.topEntriesQuery({ ...journeyInput, topEntries: 3 });
+    const transitions = OV.transitionsQuery({
+      ...journeyInput,
+      topEntryPages: ['/'],
+    });
+    expect(entries.toStatement().query).toContain("AND session_id != ''");
+    expect(transitions.toStatement().query).toContain("AND session_id != ''");
+  });
+
+  it('gives them no screen-view duration in the page-filtered metrics', () => {
+    const { query } = OV.metricsWithPageFilterQuery({
+      projectId: PROJECT_ID,
+      startDate: START,
+      endDate: END,
+      interval: 'day',
+      rawSessionFilterWhere: null,
+      rawEventFilterWhere: null,
+    }).toStatement();
+    expect(query).toContain("if(session_id = '', 0,");
+  });
+});
+
 describe('overview.sql — sql.id() identifier whitelists (R3)', () => {
   it('rejects a column name off the top-generic whitelist', () => {
     expect(() =>

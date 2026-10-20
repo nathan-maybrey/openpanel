@@ -837,3 +837,44 @@ describe('custom event series', () => {
     );
   });
 });
+
+describe('conversionQuery — sessionless events', () => {
+  // Server-side events carry session_id '', which is not one session.
+  const SESSIONLESS_EXCLUDED = "events.session_id != ''";
+
+  async function conversionSql(group: 'session_id' | 'profile_id') {
+    const { conversionQuery } = await import('./conversion.sql');
+    return render(
+      conversionQuery({
+        projectId: PROJECT_ID,
+        startDate: START,
+        endDate: END,
+        interval: 'day',
+        group,
+        funnelWindowSeconds: 3600,
+        firstEventMatch: sql`events.name = ${sql.string('screen_view')}`,
+        secondEventMatch: sql`events.name = ${sql.string('sign_up')}`,
+        eventNames: ['screen_view', 'sign_up'],
+        firstEventWhere: null,
+        secondEventWhere: null,
+        breakdownSelects: [],
+        breakdownExpressions: [],
+        profileJoinFields: [],
+        needsGroupArrayJoin: false,
+        cohortJoins: [],
+      })
+    );
+  }
+
+  it('excludes sessionless events when grouped by session', async () => {
+    const rendered = await conversionSql('session_id');
+    expect(rendered.sql).toContain(SESSIONLESS_EXCLUDED);
+    await explain(rendered);
+  });
+
+  it('keeps sessionless events when grouped by profile', async () => {
+    const rendered = await conversionSql('profile_id');
+    expect(rendered.sql).not.toContain(SESSIONLESS_EXCLUDED);
+    await explain(rendered);
+  });
+});

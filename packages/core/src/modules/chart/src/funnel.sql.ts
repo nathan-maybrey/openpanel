@@ -393,6 +393,10 @@ export function funnelBase(input: FunnelBaseInput): FunnelBase {
   });
 
   const dateRange = sql`created_at BETWEEN toDateTime(${sql.string(input.startDate)}) AND toDateTime(${sql.string(input.endDate)})`;
+  // Sessionless events (server-side tracking) all carry session_id '', so
+  // grouping them by session would funnel them as one giant session.
+  const sessionlessExcluded =
+    group === 'session_id' ? sql` AND events.session_id != ''` : sql.empty;
   const eventNames = eventSeries.flatMap(eventNamesOf);
   const columns = profileCteColumns(input, profileFilters, profileKeys);
   const activeProfiles = profileIdsInWindow({
@@ -432,7 +436,7 @@ export function funnelBase(input: FunnelBaseInput): FunnelBase {
     ' OR '
   )})`;
 
-  const funnelCte = sql`SELECT ${sql.join(cteSelects)} FROM ${sql.id(CHART_TABLE.events)}${profileJoin}${groupJoin}${cohortJoins} WHERE project_id = ${sql.string(projectId)} AND ${dateRange}${eventNames.includes('*') ? sql.empty : sql` AND events.name IN ${sql.array('String', eventNames)}`} AND ${stepPreFilter} GROUP BY ${sql.join(groupByKeys)}`;
+  const funnelCte = sql`SELECT ${sql.join(cteSelects)} FROM ${sql.id(CHART_TABLE.events)}${profileJoin}${groupJoin}${cohortJoins} WHERE project_id = ${sql.string(projectId)} AND ${dateRange}${sessionlessExcluded}${eventNames.includes('*') ? sql.empty : sql` AND events.name IN ${sql.array('String', eventNames)}`} AND ${stepPreFilter} GROUP BY ${sql.join(groupByKeys)}`;
 
   const groupsCte = needsGroupArrayJoin
     ? sql`_g AS (${buildGroupsQuery(projectId)}), `

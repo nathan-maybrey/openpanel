@@ -128,6 +128,10 @@ export function conversionQuery(input: ConversionQueryInput): SqlFragment {
   const outerKeys = [sql`event_day`, ...breakdownAliases];
   const converted = sql`countIf(steps >= ${sql.uint64(CONVERTED_STEP_COUNT)})`;
   const dateRange = sql`created_at BETWEEN toDateTime(${sql.string(startDate)}) AND toDateTime(${sql.string(endDate)})`;
+  // Sessionless events (server-side tracking) all carry session_id '', so
+  // grouping them by session would count them as one giant session.
+  const sessionlessExcluded =
+    group === 'session_id' ? sql`AND events.session_id != ''` : sql.empty;
   const activeProfiles = profileIdsInWindow({
     projectId,
     eventNames,
@@ -168,6 +172,7 @@ export function conversionQuery(input: ConversionQueryInput): SqlFragment {
         WHERE project_id = ${sql.string(projectId)}
           ${eventNames.includes('*') ? sql.empty : sql`AND events.name IN ${sql.array('String', eventNames)}`}
           AND ${dateRange}
+          ${sessionlessExcluded}
         GROUP BY ${groupKey}${innerBreakdownGroupBy})
       ) WHERE steps > 0 GROUP BY ${sql.join(outerKeys)} ORDER BY ${sql.join(outerKeys.map((key) => sql`${key} ASC`))}`;
 }

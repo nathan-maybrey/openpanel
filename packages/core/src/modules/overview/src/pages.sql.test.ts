@@ -108,6 +108,16 @@ describe('pages.sql — parses against ClickHouse', () => {
     expect(query_params.p3).toBe(END);
   });
 
+  it('topPagesQuery — sessionless events get no screen-view duration', () => {
+    // Server-side events carry session_id '', which is not one session.
+    const { query } = PG.topPagesQuery({
+      projectId: PROJECT_ID,
+      startDate: START,
+      endDate: END,
+    }).toStatement();
+    expect(query).toContain("if(session_id = '', 0,");
+  });
+
   it('pageTimeseriesQuery — with origin/path filters, week bucket', async () => {
     await explain(
       PG.pageTimeseriesQuery({

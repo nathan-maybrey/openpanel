@@ -8,7 +8,7 @@ import {
   type TopPagesSortColumn,
 } from '../../event/event.constants';
 import type { IInterval } from '../../report/report.constants';
-import { fillClause, toStartOf } from './overview.sql';
+import { fillClause, SCREEN_VIEW_DURATION, toStartOf } from './overview.sql';
 
 function dateRangeWhere(
   column: string,
@@ -67,7 +67,7 @@ export function topPagesQuery(input: TopPagesQueryInput): SqlFragment {
       session_id,
       path,
       origin,
-      dateDiff('millisecond', created_at, lead(created_at, 1, created_at) OVER (PARTITION BY session_id ORDER BY created_at)) AS duration
+      ${SCREEN_VIEW_DURATION} AS duration
     FROM events
     WHERE project_id = ${sql.string(input.projectId)}
       AND name = 'screen_view'
